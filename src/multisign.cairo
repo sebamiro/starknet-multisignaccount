@@ -1,7 +1,7 @@
 use starknet::account;
 
 // @title SRC-6 Standard Account
-#[starknet::iterface]
+#[starknet::interface]
 trait ISRC6<T> {
 	// @notice Execute a transaction through the account
 	// @param calls The list of calls to execute
@@ -21,14 +21,14 @@ trait ISRC6<T> {
 	// @param signature The signature to be validated
 	// @return The string 'VALID' represented as a felt when is valid
 	fn is_valid_signature(
-		self @T,
+		self: @T,
 		hash: felt252,
 		signature: Array<felt252>
 	) -> felt252;
 }
 
 // @title SRC-5 Iterface detection
-#[starknet::iterface]
+#[starknet::interface]
 trait ISRC5<T> {
 	// @notice Query if a contract implements an interface
 	// @param interface_id The interface identifier, as specified in SRC-5
@@ -41,6 +41,7 @@ trait ISRC5<T> {
 mod Multisign {
 	use super::ISRC6;
 	use super::ISRC5;
+	use starknet::account;
 
 	#[storage]
 	struct Storage {
@@ -49,36 +50,52 @@ mod Multisign {
 		outside_nonce: LegacyMap<felt252, felt252>
 	}
 
-	#[contructor]
-	fn contructor(
+	#[constructor]
+	fn constructor(
 		ref self: ContractState,
 		threshold: usize,
 		signers: Array<felt252>) {}
 
 	#[external(v0)]
-	impl SRC6 of ISRC6 {
+	impl SRC6 of ISRC6<ContractState> {
 		fn __execute__(
 			ref self: ContractState,
 			calls: Array<account::Call>
-		) -> Array<Span<felt252>> {}
+		) -> Array<Span<felt252>> {
+			ArrayTrait::new()
+		}
 
 		fn __validate__(
 			self: @ContractState,
 			calls: Array<account::Call>
-		) -> felt252 {}
+		) -> felt252 {
+			0
+		}
 
 		fn is_valid_signature(
-			self @ContractState,
+			self: @ContractState,
 			hash: felt252,
 			signature: Array<felt252>
-		) -> felt252;
+		) -> felt252 {
+			0
+		}
 	}
 
 	#[external(v0)]
-	impl SRC5 of ISRC5 {
+	impl SRC5 of ISRC5<ContractState> {
 		fn supports_interface(
 			self: @ContractState,
 			interface_id: felt252
-		) -> bool {}
+		) -> bool {
+			false
+		}
 	}
+}
+
+#[starknet::interface]
+trait TestMultisign<T> {
+	fn __execute__(ref self: T, calls: Array<account::Call>) -> Array<Span<felt252>>;
+	fn __validate__(self: @T, calls: Array<account::Call>) -> felt252;
+	fn is_valid_signature( self: @T, hash: felt252, signature: Array<felt252>) -> felt252;
+	fn supports_interface(self: @T, interface_id: felt252) -> bool;
 }
