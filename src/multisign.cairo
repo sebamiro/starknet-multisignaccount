@@ -43,6 +43,8 @@ mod Multisign {
 	use super::ISRC5;
 	use starknet::account;
 
+	const MAX_SIGNERS_COUNT: usize = 32;
+
 	#[storage]
 	struct Storage {
 		signers: LegacyMap<felt252, felt252>,
@@ -54,7 +56,12 @@ mod Multisign {
 	fn constructor(
 		ref self: ContractState,
 		threshold: usize,
-		signers: Array<felt252>) {}
+		signers: Array<felt252>) {
+		assert_threshold(threshold, signers.len());
+
+		self.add_signers(signers.span(), 0);
+		self.threshold.write(threshold);
+	}
 
 	#[external(v0)]
 	impl SRC6 of ISRC6<ContractState> {
@@ -89,6 +96,51 @@ mod Multisign {
 		) -> bool {
 			false
 		}
+	}
+
+	#[generate_trait]
+	impl Private of PrivateTrait {
+		fn add_signers(
+			ref self: ContractState,
+			mut signers: Span<felt252>,
+			last: felt252
+		) {
+			match signers.pop_front() {
+				Option::Some(signer_ref) => {
+					let signer = *signer_ref;
+					assert(signer != 0, 'signer/zero-signer');
+					assert(!self.is_signer_using_last(signer, last),
+						'signer/is-already-signer');
+					self.signers.write(last, signer);
+					self.add_signers(signers, signer);
+				},
+				Option::None => ()
+			}
+		}
+
+		fn is_signer_using_last(
+			self: @ContractState,
+			signer: felt252,
+			last: felt252
+		) -> bool {
+			if signer == 0 {
+				return false;
+			}
+
+			let next = self.signers.read(signer);
+			if next != 0 {
+				return true;
+			}
+			last == signer
+		}
+	}
+
+	fn assert_threshold(threshold: usize, signers_len: usize) {
+		assert(threshold != 0, 'threshold/is-zero');
+		assert(signers_len != 0, 'signers_len/is-zero');
+		assert(signers_len <= MAX_SIGNERS_COUNT,
+				'signers_len/too-high');
+		assert(threshold <= signers_len, 'threshold/too-high');
 	}
 }
 
