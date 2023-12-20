@@ -1,5 +1,5 @@
-use multisign::multisign::{ TestMultisignDispatcher, TestMultisignDispatcherTrait };
-use snforge_std::{ declare, ContractClassTrait };
+use multisign::multisign::{ Multisign, TestMultisignDispatcher, TestMultisignDispatcherTrait };
+use snforge_std::{ declare, cheatcodes::contract_class::ContractClassTrait };
 
 const signer_pubkey_1: felt252 =
 	0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca;
@@ -34,7 +34,30 @@ fn deploy(
 			}
 		};
 	};
+	let (contract_address, _) = starknet::syscalls::deploy_syscall(contract.class_hash, 0, calldata.span(), true).unwrap();
 	TestMultisignDispatcher {
-		contract_address: contract.deploy(@calldata).unwrap()
+		contract_address
 	}
+}
+
+fn deploy_err(
+	threshold: usize,
+	mut signers: Span<felt252>
+) {
+	let contract = declare('Multisign');
+	let mut calldata = ArrayTrait::new();
+	calldata.append(threshold.into());
+	calldata.append(signers.len().into());
+	loop {
+		match signers.pop_front() {
+			Option::Some(signer) => {
+				calldata.append(*signer)
+			},
+			Option::None => {
+				break;
+			}
+		};
+	};
+	let mut err = contract.deploy(@calldata).unwrap_err().panic_data;
+	panic_with_felt252(err.pop_front().unwrap());
 }
