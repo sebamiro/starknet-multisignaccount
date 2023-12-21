@@ -16,7 +16,7 @@ const signer_2_signature_s: felt252 =
 #[test]
 fn valid_one_signature() {
 	let signers = array![signer_pubkey_1, signer_pubkey_2];
-	let acc = deploy(2, signers.span());
+	let acc = deploy(1, signers.span());
 
 	let signature = array![
 		signer_pubkey_1,
@@ -30,7 +30,7 @@ fn valid_one_signature() {
 }
 
 #[test]
-fn valid_double_signature_1() {
+fn valid_double_signature() {
 	let signers = array![signer_pubkey_1, signer_pubkey_2];
 	let acc = deploy(2, signers.span());
 
@@ -49,7 +49,8 @@ fn valid_double_signature_1() {
 }
 
 #[test]
-fn valid_double_signature_2() {
+#[should_panic(expected: ('signature/not-sorted',))]
+fn invalid_signatures_not_sorted() {
 	let signers = array![signer_pubkey_1, signer_pubkey_2];
 	let acc = deploy(2, signers.span());
 
@@ -68,7 +69,7 @@ fn valid_double_signature_2() {
 }
 
 #[test]
-#[should_panic(expected: ('is_valid_signature: No signature', 'ENTRYPOINT_FAILED'))]
+#[should_panic(expected: ('signature/invalid-len',))]
 fn invalid_no_signature() {
 	let signers = array![signer_pubkey_1, signer_pubkey_2];
 	let acc = deploy(2, signers.span());
@@ -78,10 +79,10 @@ fn invalid_no_signature() {
 }
 
 #[test]
-#[should_panic(expected: ('is_valid_signature: More signatures than signers', 'ENTRYPOINT_FAILED'))]
+#[should_panic(expected: ('signature/invalid-len',))]
 fn invalid_too_much_signatures() {
 	let signers = array![signer_pubkey_1];
-	let acc = deploy(2, signers.span());
+	let acc = deploy(1, signers.span());
 
 	let signature = array![
 		signer_pubkey_1,
@@ -95,7 +96,7 @@ fn invalid_too_much_signatures() {
 }
 
 #[test]
-#[should_panic(expected: ('is_valid_signature: Same signature more than once', 'ENTRYPOINT_FAILED'))]
+#[should_panic(expected: ('signature/not-sorted',))]
 fn invalid_same_signature_twice() {
 	let signers = array![signer_pubkey_1, signer_pubkey_2];
 	let acc = deploy(2, signers.span());
@@ -112,7 +113,7 @@ fn invalid_same_signature_twice() {
 }
 
 #[test]
-#[should_panic(expected: ('is_valid_signature: Missing signer', 'ENTRYPOINT_FAILED'))]
+#[should_panic(expected: ('signer/not-a-signer',))]
 fn invalid_missing_signer() {
 	let signers = array![signer_pubkey_1];
 	let acc = deploy(1, signers.span());
@@ -126,10 +127,10 @@ fn invalid_missing_signer() {
 }
 
 #[test]
-#[should_panic(expected: ('is_valid_signature: Invalid signature lenght', 'ENTRYPOINT_FAILED'))]
+#[should_panic(expected: ('signature/invalid-len',))]
 fn invalid_short_signature() {
 	let signers = array![signer_pubkey_1];
-	let acc = deploy(2, signers.span());
+	let acc = deploy(1, signers.span());
 
 	let signature = array![
 		signer_pubkey_1,
@@ -138,10 +139,10 @@ fn invalid_short_signature() {
 }
 
 #[test]
-#[should_panic(expected: ('is_valid_signature: Invalid signature lenght', 'ENTRYPOINT_FAILED'))]
+#[should_panic(expected: ('signature/invalid-len',))]
 fn invalid_long_signature() {
 	let signers = array![signer_pubkey_1];
-	let acc = deploy(2, signers.span());
+	let acc = deploy(1, signers.span());
 
 	let signature = array![
 		signer_pubkey_1,

@@ -84,7 +84,11 @@ mod Multisign {
 			hash: felt252,
 			signature: Array<felt252>
 		) -> felt252 {
-			0
+			if self.is_valid_signature_span(hash, signature.span()) {
+				starknet::VALIDATED
+			} else {
+				0
+			}
 		}
 	}
 
@@ -133,6 +137,73 @@ mod Multisign {
 			}
 			last == signer
 		}
+
+		fn is_valid_signature_span(
+			self: @ContractState,
+			hash: felt252,
+			signature: Span<felt252>
+		) -> bool {
+			let threshold = self.threshold.read();
+			assert(threshold != 0, 'Uninitialized');
+			let mut signatures = deserialize_signatures(signature)
+				.expect('signature/invalid-len');
+			assert(threshold == signatures.len(), 'signature/invalid-len');
+			let mut last: u256 = 0;
+			loop {
+				match signatures.pop_front() {
+					Option::Some(signature_ref) => {
+						let signature = *signature_ref;
+						let signer_uint = signature.signer.into();
+						assert(signer_uint > last, 'signature/not-sorted');
+						if !self.is_valid_signer_signature(
+								hash,
+								signature.signer,
+								signature.signature_r,
+								signature.signature_s,
+							) {
+							break false;
+						}
+						last = signer_uint;
+					},
+					Option::None => {
+						break true;
+					}
+				}
+			}
+		}
+
+		fn is_valid_signer_signature(
+			self: @ContractState,
+			hash: felt252,
+			signer: felt252,
+			signature_r: felt252,
+			signature_s: felt252
+		) -> bool {
+			assert(self.is_signer(signer), 'signer/not-a-signer');
+			ecdsa::check_ecdsa_signature(hash, signer, signature_r, signature_s)
+		}
+
+		fn is_signer(self: @ContractState, signer: felt252) -> bool {
+			if signer == 0 {
+				return false;
+			}
+			let next = self.signers.read(signer);
+			if next != 0 {
+				return true;
+			}
+			self.get_last() == signer
+		}
+
+		fn get_last(self: @ContractState) -> felt252 {
+			let mut curr = self.signers.read(0);
+			loop {
+				let next = self.signers.read(curr);
+				if next == 0 {
+					break curr;
+				}
+				curr = next;
+			}
+		}
 	}
 
 	fn assert_threshold(threshold: usize, signers_len: usize) {
@@ -141,6 +212,28 @@ mod Multisign {
 		assert(signers_len <= MAX_SIGNERS_COUNT,
 				'signers_len/too-high');
 		assert(threshold <= signers_len, 'threshold/too-high');
+	}
+
+	#[derive(Copy, Drop, Serde)]
+	struct SignerSignature {
+		signer: felt252,
+		signature_r: felt252,
+		signature_s: felt252
+	}
+
+	fn deserialize_signatures(
+		mut serialized: Span<felt252>
+	) -> Option<Span<SignerSignature>> {
+		let mut signatures = ArrayTrait::new();
+		loop {
+			if serialized.len() == 0 {
+				break Option::Some(signatures.span());
+			}
+			match Serde::deserialize(ref serialized) {
+				Option::Some(s) => { signatures.append(s) },
+				Option::None => { break Option::None; },
+			}
+		}
 	}
 }
 
