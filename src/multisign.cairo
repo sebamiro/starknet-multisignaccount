@@ -17,6 +17,7 @@ trait ISRC6<T> {
 	fn __validate__(self: @T, calls: Array<account::Call>) -> felt252;
 
 	// @notice Assert whether a given signature for a given hash is valid
+	// @dev signatures must be deserialized
 	// @param hash The hash of the data
 	// @param signature The signature to be validated
 	// @return The string 'VALID' represented as a felt when is valid
@@ -52,6 +53,10 @@ mod Multisign {
 		outside_nonce: LegacyMap<felt252, felt252>
 	}
 
+	// @notice Contructor of the account
+	// @dev Asserts threshold in relation with signers-len
+	// @param threshold Initial threshold
+	// @param signers Array of inital signers' public-keys
 	#[constructor]
 	fn constructor(
 		ref self: ContractState,
@@ -69,6 +74,7 @@ mod Multisign {
 			ref self: ContractState,
 			calls: Array<account::Call>
 		) -> Array<Span<felt252>> {
+			// TODO
 			ArrayTrait::new()
 		}
 
@@ -76,6 +82,7 @@ mod Multisign {
 			self: @ContractState,
 			calls: Array<account::Call>
 		) -> felt252 {
+			// TODO
 			0
 		}
 
@@ -98,6 +105,7 @@ mod Multisign {
 			self: @ContractState,
 			interface_id: felt252
 		) -> bool {
+			// TODO
 			false
 		}
 	}
