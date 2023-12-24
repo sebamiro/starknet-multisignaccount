@@ -17,6 +17,7 @@ trait ISRC6<T> {
 	fn __validate__(self: @T, calls: Array<account::Call>) -> felt252;
 
 	// @notice Assert whether a given signature for a given hash is valid
+	// @dev signatures must be deserialized
 	// @param hash The hash of the data
 	// @param signature The signature to be validated
 	// @return The string 'VALID' represented as a felt when is valid
@@ -43,6 +44,7 @@ mod Multisign {
 	use super::ISRC5;
 	use starknet::account;
 
+	const SRC6_INTERFACE_ID: felt252 = 1270010605630597976495846281167968799381097569185364931397797212080166453709; // hash of SNIP-6 trait
 	const MAX_SIGNERS_COUNT: usize = 32;
 
 	#[storage]
@@ -52,6 +54,10 @@ mod Multisign {
 		outside_nonce: LegacyMap<felt252, felt252>
 	}
 
+	// @notice Contructor of the account
+	// @dev Asserts threshold in relation with signers-len
+	// @param threshold Initial threshold
+	// @param signers Array of inital signers' public-keys
 	#[constructor]
 	fn constructor(
 		ref self: ContractState,
@@ -69,14 +75,18 @@ mod Multisign {
 			ref self: ContractState,
 			calls: Array<account::Call>
 		) -> Array<Span<felt252>> {
-			ArrayTrait::new()
+			assert_only_protocol();
+			execute_multi_call(calls.span())
 		}
 
 		fn __validate__(
 			self: @ContractState,
 			calls: Array<account::Call>
 		) -> felt252 {
-			0
+			assert_only_protocol();
+			assert(calls.len() > 0, 'validate/no-calls');
+			self.assert_valid_calls(calls.span());
+			starknet::VALIDATED
 		}
 
 		fn is_valid_signature(
@@ -98,7 +108,7 @@ mod Multisign {
 			self: @ContractState,
 			interface_id: felt252
 		) -> bool {
-			false
+			interface_id == SRC6_INTERFACE_ID
 		}
 	}
 
@@ -204,6 +214,22 @@ mod Multisign {
 				curr = next;
 			}
 		}
+
+		fn assert_valid_calls(
+			self: @ContractState,
+			calls: Span<account::Call>
+		) {
+			assert_no_self_call(calls);
+
+			let tx_info = starknet::get_tx_info().unbox();
+			assert(
+				self.is_valid_signature_span(
+					tx_info.transaction_hash,
+					tx_info.signature
+				),
+				'call/invalid-signature'
+			)
+		}
 	}
 
 	fn assert_threshold(threshold: usize, signers_len: usize) {
@@ -234,6 +260,69 @@ mod Multisign {
 				Option::None => { break Option::None; },
 			}
 		}
+	}
+
+	fn assert_only_protocol() {
+		assert(starknet::get_caller_address().is_zero(), 'caller/non-zero');
+	}
+
+	fn assert_no_self_call(
+		mut calls: Span<account::Call>
+	) {
+		let self = starknet::get_contract_address();
+		loop {
+			match calls.pop_front() {
+				Option::Some(call) => {
+					assert(*call.to != self, 'call/call-to-self');
+				},
+				Option::None => {
+					break ;
+				}
+			}
+		}
+	}
+
+	fn execute_multi_call(mut calls: Span<account::Call>) -> Array<Span<felt252>> {
+		assert(calls.len() != 0, 'execute/no-calls');
+		let mut result: Array<Span<felt252>> = ArrayTrait::new();
+		let mut idx = 0;
+		loop {
+			match calls.pop_front() {
+				Option::Some(call) => {
+					match starknet::call_contract_syscall(
+						*call.to,
+						*call.selector,
+						call.calldata.span()
+					) {
+						Result::Ok(retdata) => {
+							result.append(retdata);
+							idx += 1;
+						},
+						Result::Err(err) => {
+							let mut data = ArrayTrait::new();
+							data.append('call/multicall-faild');
+							data.append(idx);
+							let mut err = err;
+							loop {
+								match err.pop_front() {
+									Option::Some(v) => {
+										data.append(v);
+									},
+									Option::None => {
+										break;
+									}
+								}
+							};
+							panic(data);
+						}
+					}
+				},
+				Option::None => {
+					break;
+				}
+			}
+		};
+		result
 	}
 }
 
