@@ -83,8 +83,10 @@ mod Multisign {
 			self: @ContractState,
 			calls: Array<account::Call>
 		) -> felt252 {
-			// TODO
-			0
+			assert_only_protocol();
+			assert(calls.len() > 0, 'validate/no-calls');
+			self.assert_valid_calls(calls.span());
+			starknet::VALIDATED
 		}
 
 		fn is_valid_signature(
@@ -212,6 +214,22 @@ mod Multisign {
 				curr = next;
 			}
 		}
+
+		fn assert_valid_calls(
+			self: @ContractState,
+			calls: Span<account::Call>
+		) {
+			assert_no_self_call(calls);
+
+			let tx_info = starknet::get_tx_info().unbox();
+			assert(
+				self.is_valid_signature_span(
+					tx_info.transaction_hash,
+					tx_info.signature
+				),
+				'call/invalid-signature'
+			)
+		}
 	}
 
 	fn assert_threshold(threshold: usize, signers_len: usize) {
@@ -240,6 +258,26 @@ mod Multisign {
 			match Serde::deserialize(ref serialized) {
 				Option::Some(s) => { signatures.append(s) },
 				Option::None => { break Option::None; },
+			}
+		}
+	}
+
+	fn assert_only_protocol() {
+		assert(starknet::get_caller_address().is_zero(), 'caller/non-zero');
+	}
+
+	fn assert_no_self_call(
+		mut calls: Span<account::Call>
+	) {
+		let self = starknet::get_contract_address();
+		loop {
+			match calls.pop_front() {
+				Option::Some(call) => {
+					assert(*call.to != self, 'call/call-to-self');
+				},
+				Option::None => {
+					break ;
+				}
 			}
 		}
 	}
