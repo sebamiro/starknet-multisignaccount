@@ -75,8 +75,8 @@ mod Multisign {
 			ref self: ContractState,
 			calls: Array<account::Call>
 		) -> Array<Span<felt252>> {
-			// TODO
-			ArrayTrait::new()
+			assert_only_protocol();
+			execute_multi_call(calls.span())
 		}
 
 		fn __validate__(
@@ -280,6 +280,49 @@ mod Multisign {
 				}
 			}
 		}
+	}
+
+	fn execute_multi_call(mut calls: Span<account::Call>) -> Array<Span<felt252>> {
+		assert(calls.len() != 0, 'execute/no-calls');
+		let mut result: Array<Span<felt252>> = ArrayTrait::new();
+		let mut idx = 0;
+		loop {
+			match calls.pop_front() {
+				Option::Some(call) => {
+					match starknet::call_contract_syscall(
+						*call.to,
+						*call.selector,
+						call.calldata.span()
+					) {
+						Result::Ok(retdata) => {
+							result.append(retdata);
+							idx += 1;
+						},
+						Result::Err(err) => {
+							let mut data = ArrayTrait::new();
+							data.append('call/multicall-faild');
+							data.append(idx);
+							let mut err = err;
+							loop {
+								match err.pop_front() {
+									Option::Some(v) => {
+										data.append(v);
+									},
+									Option::None => {
+										break;
+									}
+								}
+							};
+							panic(data);
+						}
+					}
+				},
+				Option::None => {
+					break;
+				}
+			}
+		};
+		result
 	}
 }
 
