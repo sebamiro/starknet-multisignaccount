@@ -44,6 +44,7 @@ mod Multisign {
 	use super::ISRC5;
 	use starknet::account;
 
+	const SRC6_INTERFACE_ID: felt252 = 1270010605630597976495846281167968799381097569185364931397797212080166453709; // hash of SNIP-6 trait
 	const MAX_SIGNERS_COUNT: usize = 32;
 
 	#[storage]
@@ -105,8 +106,7 @@ mod Multisign {
 			self: @ContractState,
 			interface_id: felt252
 		) -> bool {
-			// TODO
-			false
+			interface_id == SRC6_INTERFACE_ID
 		}
 	}
 
